@@ -20,9 +20,17 @@ The application is built around the concept of a unified command center: one wor
 
 ## Screenshot
 
-## Demo
+<img width="1854" height="932" alt="image" src="https://github.com/user-attachments/assets/72bc8d21-d379-45ea-9642-68f8040df9b7" />
 
-## Current Product Scope
+<img width="1854" height="932" alt="image" src="https://github.com/user-attachments/assets/3e62350c-49b7-44d5-a1a7-fdb0e286d451" />
+
+<img width="1854" height="932" alt="image" src="https://github.com/user-attachments/assets/b917c0e5-b4a3-4668-88d5-3dd90c1cd31b" />
+
+<img width="1854" height="932" alt="image" src="https://github.com/user-attachments/assets/424c479f-653b-464b-b1b5-2be62fb1a1fc" />
+
+<img width="1854" height="932" alt="image" src="https://github.com/user-attachments/assets/8610e07c-6130-4ea0-9090-6d4d217020d7" />
+
+## Demo
 
 ### Frontend
 
@@ -71,51 +79,6 @@ This area suggests the project is intended to evolve into a more complete data p
 - Transformers
 - Pandas / NumPy
 - Hugging Face ecosystem
-
-## Repository Structure
-
-```text
-Social-Media-Analytics/
-├── README.md
-├── backend/
-│   ├── main.py
-│   ├── requirements.txt
-│   ├── start_backend.sh
-│   ├── data_scraping/
-│   │   └── X - Twitter/
-│   │       ├── Tw_age_gender.csv
-│   │       ├── Tweets.csv
-│   │       ├── twitter_training.csv
-│   │       └── twitter_validation.csv
-│   └── sentiment-analysis/
-│       ├── __init__.py
-│       ├── config.py
-│       ├── inference.py
-│       ├── load_models.py
-│       ├── preprocessing.py
-│       ├── training.py
-│       └── models/
-├── frontend/
-│   ├── package.json
-│   ├── bunfig.toml
-│   ├── components.json
-│   ├── eslint.config.js
-│   ├── tsconfig.json
-│   ├── vite.config.ts
-│   ├── start_frontend.sh
-│   ├── public/
-│   └── src/
-│       ├── router.tsx
-│       ├── routeTree.gen.ts
-│       ├── server.ts
-│       ├── start.ts
-│       ├── styles.css
-│       ├── components/
-│       ├── hooks/
-│       ├── lib/
-│       └── routes/
-└── .gitignore
-```
 
 ## Key Features
 
@@ -295,7 +258,7 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Use the model modules in `backend/sentiment-analysis/` as the base for implementing text preprocessing, training jobs, and inference.
+Use the model modules in `backend/sentiment_analysis/` as the base for implementing text preprocessing, training jobs, and inference.
 
 ## Notes
 
