@@ -4,6 +4,8 @@ A social intelligence dashboard and research platform for monitoring online conv
 
 This repository combines a modern frontend analytics workspace with an experimental backend for data processing, scraping, and sentiment analysis. The current implementation contains a polished dashboard experience with mock analytics data and a Python backend scaffold that is ready for real ingestion and model integration.
 
+SIH 2026, PS ID: 26152 
+
 ## Overview
 
 The project is designed to help analysts, marketers, and researchers:
