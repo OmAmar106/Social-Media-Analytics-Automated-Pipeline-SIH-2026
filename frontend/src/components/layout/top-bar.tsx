@@ -1,10 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { Bell, ChevronDown, Search, Settings, SlidersHorizontal } from "lucide-react";
+import {
+  Bell,
+  ChevronDown,
+  Search,
+  Settings,
+  SlidersHorizontal,
+} from "lucide-react";
+
 import { cn } from "@/lib/utils";
-import { TIME_RANGES, useAppState, type RangeId } from "@/lib/app-state";
-import { PLATFORM_IDS, PLATFORM_META, creators, keywords, trends } from "@/lib/mock/dataset";
-import type { PlatformId } from "@/lib/types";
+import {
+  useAppState,
+  type PlatformFilter,
+  type TimeRange,
+} from "@/lib/app-state";
+
 import {
   CommandDialog,
   CommandEmpty,
@@ -13,229 +23,1107 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
+
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+
+type CredentialState = {
+  telegramApiId: string;
+  telegramApiHash: string;
+  telegramPhone: string;
+
+  instagramAppId: string;
+  instagramAppSecret: string;
+  instagramAccessToken: string;
+
+  facebookAppId: string;
+  facebookAppSecret: string;
+  facebookAccessToken: string;
+
+  youtubeApiKey: string;
+
+  xBearerToken: string;
+
+  redditClientId: string;
+  redditClientSecret: string;
+  redditUserAgent: string;
+};
+
+const emptyCredentials: CredentialState = {
+  telegramApiId: "",
+  telegramApiHash: "",
+  telegramPhone: "",
+
+  instagramAppId: "",
+  instagramAppSecret: "",
+  instagramAccessToken: "",
+
+  facebookAppId: "",
+  facebookAppSecret: "",
+  facebookAccessToken: "",
+
+  youtubeApiKey: "",
+
+  xBearerToken: "",
+
+  redditClientId: "",
+  redditClientSecret: "",
+  redditUserAgent: "",
+};
 
 export function TopBar() {
-  const { platform, setPlatform, range, setRange, workspace } = useAppState();
-  const [open, setOpen] = useState(false);
   const navigate = useNavigate();
 
+  const {
+    platform,
+    setPlatform,
+    range,
+    setRange,
+    workspace,
+  } = useAppState();
+
+  const [commandOpen, setCommandOpen] = useState(false);
+
+  const [settingsOpen, setSettingsOpen] =
+    useState(false);
+
+  const [settingsSection, setSettingsSection] =
+    useState<
+      "settings" | "workspace" | "credentials"
+    >("settings");
+
+  const [workspaceName, setWorkspaceName] =
+    useState(workspace);
+
+  const [displayWorkspace, setDisplayWorkspace] =
+    useState(workspace);
+
+  const [credentials, setCredentials] =
+    useState<CredentialState>(emptyCredentials);
+
+  const [signedIn, setSignedIn] = useState(true);
+
+  /*
+   * Load browser-only settings.
+   */
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
-        e.preventDefault();
-        setOpen((v) => !v);
+    if (typeof window === "undefined") return;
+
+    const savedWorkspace =
+      window.localStorage.getItem(
+        "signal_workspace",
+      );
+
+    const savedCredentials =
+      window.localStorage.getItem(
+        "signal_credentials",
+      );
+
+    const savedSignedIn =
+      window.localStorage.getItem(
+        "signal_signed_in",
+      );
+
+    if (savedWorkspace) {
+      setWorkspaceName(savedWorkspace);
+      setDisplayWorkspace(savedWorkspace);
+    }
+
+    if (savedCredentials) {
+      try {
+        const parsed = JSON.parse(
+          savedCredentials,
+        );
+
+        setCredentials({
+          ...emptyCredentials,
+          ...parsed,
+        });
+      } catch {
+        setCredentials(emptyCredentials);
       }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    }
+
+    if (savedSignedIn === "false") {
+      setSignedIn(false);
+    }
   }, []);
 
-  const rangeLabel = useMemo(
-    () => TIME_RANGES.find((r) => r.id === range)?.label ?? "Last 24 hours",
-    [range],
+  /*
+   * Ctrl/Cmd + K.
+   */
+  useEffect(() => {
+    const handleKeyDown = (
+      event: KeyboardEvent,
+    ) => {
+      if (
+        (event.ctrlKey || event.metaKey) &&
+        event.key.toLowerCase() === "k"
+      ) {
+        event.preventDefault();
+        setCommandOpen(true);
+      }
+    };
+
+    window.addEventListener(
+      "keydown",
+      handleKeyDown,
+    );
+
+    return () => {
+      window.removeEventListener(
+        "keydown",
+        handleKeyDown,
+      );
+    };
+  }, []);
+
+  const platformOptions: Array<{
+    value: PlatformFilter;
+    label: string;
+  }> = [
+    {
+      value: "all",
+      label: "All platforms",
+    },
+    {
+      value: "x",
+      label: "X",
+    },
+    {
+      value: "youtube",
+      label: "YouTube",
+    },
+    {
+      value: "facebook",
+      label: "Facebook",
+    },
+    {
+      value: "telegram",
+      label: "Telegram",
+    },
+    {
+      value: "reddit",
+      label: "Reddit",
+    },
+    {
+      value: "instagram",
+      label: "Instagram",
+    },
+  ];
+
+  const rangeOptions: Array<{
+    value: TimeRange;
+    label: string;
+  }> = [
+    {
+      value: "24h",
+      label: "Last 24 hours",
+    },
+    {
+      value: "7d",
+      label: "Last 7 days",
+    },
+    {
+      value: "30d",
+      label: "Last 30 days",
+    },
+    {
+      value: "90d",
+      label: "Last 90 days",
+    },
+  ];
+
+  const currentPlatform =
+    platformOptions.find(
+      (item) => item.value === platform,
+    ) ?? platformOptions[0];
+
+  const currentRange =
+    rangeOptions.find(
+      (item) => item.value === range,
+    ) ?? rangeOptions[0];
+
+  const searchItems = useMemo(
+    () => [
+      {
+        type: "Dashboard",
+        label: "Dashboard",
+        path: "/",
+      },
+      {
+        type: "Sentiment",
+        label: "Sentiment",
+        path: "/sentiment",
+      },
+      {
+        type: "Platforms",
+        label: "Platforms",
+        path: "/platforms",
+      },
+      {
+        type: "Trends",
+        label: "Trends",
+        path: "/trends",
+      },
+      {
+        type: "Keywords",
+        label: "Viral Keywords",
+        path: "/keywords",
+      },
+      {
+        type: "Content",
+        label: "Content Intelligence",
+        path: "/content",
+      },
+      {
+        type: "Explorer",
+        label: "Data Explorer",
+        path: "/explorer",
+      },
+      {
+        type: "Audience",
+        label: "Audience & Demographics",
+        path: "/audience",
+      },
+      {
+        type: "Propagation",
+        label: "Trend Propagation",
+        path: "/propagation",
+      },
+      {
+        type: "Chatbot",
+        label: "AI Chatbot",
+        path: "/chatbot",
+      },
+    ],
+    [],
   );
 
+  const openSettings = (
+    section:
+      | "settings"
+      | "workspace"
+      | "credentials",
+  ) => {
+    setSettingsSection(section);
+    setSettingsOpen(true);
+  };
+
+  const updateCredential = (
+    field: keyof CredentialState,
+    value: string,
+  ) => {
+    setCredentials((previous) => ({
+      ...previous,
+      [field]: value,
+    }));
+  };
+
+  const saveCredentials = () => {
+    if (typeof window === "undefined") return;
+
+    window.localStorage.setItem(
+      "signal_credentials",
+      JSON.stringify(credentials),
+    );
+
+    setSettingsOpen(false);
+  };
+
+  const saveWorkspace = () => {
+    if (typeof window === "undefined") return;
+
+    const cleanedName =
+      workspaceName.trim();
+
+    if (!cleanedName) return;
+
+    window.localStorage.setItem(
+      "signal_workspace",
+      cleanedName,
+    );
+
+    setWorkspaceName(cleanedName);
+    setDisplayWorkspace(cleanedName);
+
+    setSettingsOpen(false);
+  };
+
+  /*
+   * Prototype sign-out.
+   *
+   * This now creates a visible signed-out state
+   * instead of simply navigating to the same dashboard.
+   */
+  const signOut = () => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(
+        "signal_signed_in",
+        "false",
+      );
+
+      window.sessionStorage.clear();
+    }
+
+    setSignedIn(false);
+    setSettingsOpen(false);
+  };
+
+  /*
+   * Prototype sign-in again.
+   */
+  const signIn = () => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(
+        "signal_signed_in",
+        "true",
+      );
+    }
+
+    setSignedIn(true);
+  };
+
+  /*
+   * Signed-out screen.
+   */
+  if (!signedIn) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="w-full max-w-md rounded-xl border bg-card p-8 shadow-sm">
+          <div className="mb-6">
+            <div className="text-lg font-semibold">
+              Social Media Analytics
+            </div>
+
+            <div className="mt-1 text-sm text-muted-foreground">
+              You have been signed out.
+            </div>
+          </div>
+
+          <Button
+            className="w-full"
+            onClick={signIn}
+          >
+            Sign in
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center gap-3 border-b border-border bg-surface/95 px-4 backdrop-blur">
-      <div className="flex min-w-0 items-center gap-2">
-        <span className="truncate text-[13px] font-medium tracking-tight">{workspace}</span>
-        <span className="hidden h-5 items-center rounded-sm border border-border bg-secondary/60 px-1.5 text-[10px] uppercase tracking-wider text-muted-foreground sm:inline-flex">
-          Production
-        </span>
-      </div>
+    <>
+      <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur">
+        <div className="flex h-16 items-center gap-3 px-4 lg:px-6">
 
-      <button
-        onClick={() => setOpen(true)}
-        className="group ml-2 flex h-8 min-w-0 flex-1 max-w-md items-center gap-2 rounded-sm border border-border bg-background px-2.5 text-left text-xs text-muted-foreground transition-colors hover:border-border-strong hover:text-foreground"
-      >
-        <Search className="size-3.5 shrink-0" />
-        <span className="truncate">Search trends, keywords, creators, posts, platforms…</span>
-        <kbd className="num ml-auto hidden shrink-0 rounded-sm border border-border px-1 text-[10px] text-muted-foreground sm:block">
-          ⌘K
-        </kbd>
-      </button>
+          {/* Workspace */}
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="min-w-0">
+              <div className="truncate text-sm font-semibold">
+                {displayWorkspace}
+              </div>
 
-      <div className="ml-auto flex items-center gap-1.5">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="hidden h-8 gap-1.5 text-xs md:inline-flex">
-              {rangeLabel}
-              <ChevronDown className="size-3.5 opacity-60" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-44">
-            <DropdownMenuLabel className="text-xs">Time range</DropdownMenuLabel>
-            <DropdownMenuRadioGroup value={range} onValueChange={(v) => setRange(v as RangeId)}>
-              {TIME_RANGES.map((r) => (
-                <DropdownMenuRadioItem key={r.id} value={r.id} className="text-xs">
-                  {r.label}
-                </DropdownMenuRadioItem>
+              <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                <span className="size-1.5 rounded-full bg-emerald-500" />
+                Production
+              </div>
+            </div>
+          </div>
+
+          <div className="mx-1 hidden h-6 w-px bg-border md:block" />
+
+          {/* Search */}
+          <button
+            type="button"
+            onClick={() =>
+              setCommandOpen(true)
+            }
+            className={cn(
+              "hidden h-9 flex-1 items-center gap-2 rounded-md",
+              "border bg-muted/30 px-3 text-left text-sm",
+              "text-muted-foreground transition-colors",
+              "hover:bg-muted/50 md:flex",
+            )}
+          >
+            <Search className="size-4" />
+
+            <span className="flex-1">
+              Search trends, keywords, creators...
+            </span>
+
+            <kbd className="hidden rounded border bg-background px-1.5 py-0.5 text-[10px] sm:block">
+              Ctrl K
+            </kbd>
+          </button>
+
+          {/* Mobile search */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="md:hidden"
+            onClick={() =>
+              setCommandOpen(true)
+            }
+            aria-label="Search"
+          >
+            <Search className="size-4" />
+          </Button>
+
+          <div className="flex-1 md:hidden" />
+
+          {/* Time range */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="hidden gap-2 text-xs sm:flex"
+              >
+                <SlidersHorizontal className="size-3.5" />
+                {currentRange.label}
+                <ChevronDown className="size-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>
+                Time range
+              </DropdownMenuLabel>
+
+              <DropdownMenuSeparator />
+
+              {rangeOptions.map((item) => (
+                <DropdownMenuItem
+                  key={item.value}
+                  onClick={() =>
+                    setRange(item.value)
+                  }
+                >
+                  <span
+                    className={cn(
+                      item.value === range &&
+                        "font-semibold",
+                    )}
+                  >
+                    {item.label}
+                  </span>
+                </DropdownMenuItem>
               ))}
-            </DropdownMenuRadioGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
-              <SlidersHorizontal className="size-3.5 opacity-70" />
-              {platform === "all" ? "All platforms" : PLATFORM_META[platform].name}
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-44">
-            <DropdownMenuLabel className="text-xs">Platform filter</DropdownMenuLabel>
-            <DropdownMenuRadioGroup
-              value={platform}
-              onValueChange={(v) => setPlatform(v as PlatformId | "all")}
-            >
-              <DropdownMenuRadioItem value="all" className="text-xs">
-                All platforms
-              </DropdownMenuRadioItem>
-              {PLATFORM_IDS.map((p) => (
-                <DropdownMenuRadioItem key={p} value={p} className="text-xs">
-                  {PLATFORM_META[p].name}
-                </DropdownMenuRadioItem>
+          {/* Platform */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="hidden gap-2 text-xs lg:flex"
+              >
+                {currentPlatform.label}
+                <ChevronDown className="size-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>
+                Platform
+              </DropdownMenuLabel>
+
+              <DropdownMenuSeparator />
+
+              {platformOptions.map((item) => (
+                <DropdownMenuItem
+                  key={item.value}
+                  onClick={() =>
+                    setPlatform(item.value)
+                  }
+                >
+                  <span
+                    className={cn(
+                      item.value === platform &&
+                        "font-semibold",
+                    )}
+                  >
+                    {item.label}
+                  </span>
+                </DropdownMenuItem>
               ))}
-            </DropdownMenuRadioGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              className="relative rounded-sm p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-              aria-label="Notifications"
+          {/* Alerts */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="relative"
+                aria-label="Alerts"
+              >
+                <Bell className="size-4" />
+
+                <span className="absolute right-1.5 top-1.5 size-1.5 rounded-full bg-red-500" />
+              </Button>
+            </DropdownMenuTrigger>
+
+            <DropdownMenuContent
+              align="end"
+              className="w-72"
             >
-              <Bell className="size-4" />
-              <span className="absolute right-1 top-1 size-1.5 rounded-full bg-negative" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-72">
-            <DropdownMenuLabel className="text-xs">Alerts</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {[
-              { t: "Velocity threshold breached", d: "AI Regulation · +182% in 60 min", a: "4m ago" },
-              { t: "Cross-platform migration", d: "Election Debate · X → Telegram", a: "22m ago" },
-              { t: "Sentiment shift", d: "GPU Pricing net sentiment −0.31", a: "1h ago" },
-            ].map((n) => (
-              <DropdownMenuItem key={n.t} className="flex-col items-start gap-0.5 py-2">
-                <span className="text-xs font-medium">{n.t}</span>
-                <span className="text-[11px] text-muted-foreground">{n.d}</span>
-                <span className="num text-[10px] text-muted-foreground">{n.a}</span>
+              <DropdownMenuLabel>
+                Alerts
+              </DropdownMenuLabel>
+
+              <DropdownMenuSeparator />
+
+              <DropdownMenuItem className="flex-col items-start gap-1">
+                <span className="text-xs font-medium">
+                  Monitoring is active
+                </span>
+
+                <span className="text-[11px] text-muted-foreground">
+                  Your analytics pipeline is running.
+                </span>
               </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
 
-        <button
-          className="rounded-sm p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-          aria-label="Settings"
-        >
-          <Settings className="size-4" />
-        </button>
+              <DropdownMenuItem className="flex-col items-start gap-1">
+                <span className="text-xs font-medium">
+                  Telegram data available
+                </span>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button className="flex items-center gap-2 rounded-sm border border-border bg-secondary/50 py-1 pl-1 pr-2 transition-colors hover:bg-accent">
-              <span className="num flex size-6 items-center justify-center rounded-sm bg-primary/20 text-[10px] font-semibold text-primary">
-                AR
-              </span>
-              <ChevronDown className="size-3 text-muted-foreground" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-52">
-            <DropdownMenuLabel className="flex flex-col gap-0.5">
-              <span className="text-xs font-medium">A. Reyes</span>
-              <span className="text-[11px] font-normal text-muted-foreground">Lead analyst · Intelligence</span>
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-xs">Workspace settings</DropdownMenuItem>
-            <DropdownMenuItem className="text-xs">API credentials</DropdownMenuItem>
-            <DropdownMenuItem className="text-xs">Collector configuration</DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-xs">Sign out</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+                <span className="text-[11px] text-muted-foreground">
+                  New Telegram posts are available for analysis.
+                </span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
-      <CommandDialog open={open} onOpenChange={setOpen}>
-        <CommandInput placeholder="Search trends, keywords, creators, posts, topics…" />
+          {/* Settings */}
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Settings"
+            onClick={() =>
+              openSettings("settings")
+            }
+          >
+            <Settings className="size-4" />
+          </Button>
+
+          {/* Profile */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                className="gap-2 px-2"
+              >
+                <div className="flex size-7 items-center justify-center rounded-full bg-muted text-xs font-semibold">
+                  A
+                </div>
+
+                <span className="hidden text-xs font-medium sm:inline">
+                  A. Reyes
+                </span>
+
+                <ChevronDown className="size-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>
+                Account
+              </DropdownMenuLabel>
+
+              <DropdownMenuSeparator />
+
+              <DropdownMenuItem
+                className="text-xs"
+                onClick={() =>
+                  openSettings("workspace")
+                }
+              >
+                Workspace settings
+              </DropdownMenuItem>
+
+              <DropdownMenuItem
+                className="text-xs"
+                onClick={() =>
+                  openSettings("credentials")
+                }
+              >
+                API credentials
+              </DropdownMenuItem>
+
+              <DropdownMenuItem
+                className="text-xs"
+                onClick={() => {}}
+              >
+                Collector configuration
+              </DropdownMenuItem>
+
+              <DropdownMenuSeparator />
+
+              <DropdownMenuItem
+                className="text-xs text-red-600 focus:text-red-600"
+                onClick={signOut}
+              >
+                Sign out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </header>
+
+      {/* Search */}
+      <CommandDialog
+        open={commandOpen}
+        onOpenChange={setCommandOpen}
+      >
+        <CommandInput
+          placeholder="Search pages..."
+        />
+
         <CommandList>
-          <CommandEmpty>No matches in the current corpus.</CommandEmpty>
-          <CommandGroup heading="Trends">
-            {trends.slice(0, 6).map((t) => (
+          <CommandEmpty>
+            No results found.
+          </CommandEmpty>
+
+          <CommandGroup heading="Navigate">
+            {searchItems.map((item) => (
               <CommandItem
-                key={t.id}
-                value={`trend ${t.name} ${t.category}`}
+                key={item.path}
+                value={`${item.type} ${item.label}`}
                 onSelect={() => {
-                  setOpen(false);
-                  navigate({ to: "/trends/$trendId", params: { trendId: t.id } });
+                  setCommandOpen(false);
+
+                  navigate({
+                    to: item.path,
+                  });
                 }}
               >
-                <span className="flex-1">{t.name}</span>
-                <span className="num text-[11px] text-muted-foreground">{t.category}</span>
-              </CommandItem>
-            ))}
-          </CommandGroup>
-          <CommandGroup heading="Keywords">
-            {keywords.slice(0, 5).map((k) => (
-              <CommandItem
-                key={k.id}
-                value={`keyword ${k.term}`}
-                onSelect={() => {
-                  setOpen(false);
-                  navigate({ to: "/keywords" });
-                }}
-              >
-                <span className="flex-1">{k.term}</span>
-                <span className="num text-[11px] text-muted-foreground">{k.cluster}</span>
-              </CommandItem>
-            ))}
-          </CommandGroup>
-          <CommandGroup heading="Creators">
-            {creators.slice(0, 5).map((c) => (
-              <CommandItem
-                key={c.id}
-                value={`creator ${c.handle} ${c.displayName}`}
-                onSelect={() => {
-                  setOpen(false);
-                  navigate({ to: "/content" });
-                }}
-              >
-                <span className="num flex-1">@{c.handle}</span>
-                <span className="text-[11px] text-muted-foreground">{PLATFORM_META[c.platform].name}</span>
-              </CommandItem>
-            ))}
-          </CommandGroup>
-          <CommandGroup heading="Platforms">
-            {PLATFORM_IDS.map((p) => (
-              <CommandItem
-                key={p}
-                value={`platform ${PLATFORM_META[p].name}`}
-                onSelect={() => {
-                  setOpen(false);
-                  setPlatform(p);
-                  navigate({ to: "/platforms" });
-                }}
-              >
-                <span className={cn("flex-1")}>{PLATFORM_META[p].name}</span>
-                <span className="text-[11px] text-muted-foreground">Set as filter</span>
+                <Search className="mr-2 size-4" />
+
+                <span>{item.label}</span>
+
+                <span className="ml-auto text-[10px] text-muted-foreground">
+                  {item.type}
+                </span>
               </CommandItem>
             ))}
           </CommandGroup>
         </CommandList>
       </CommandDialog>
-    </header>
+
+      {/* Settings */}
+      <Dialog
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+      >
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+
+          <DialogHeader>
+            <DialogTitle>
+              {settingsSection === "settings" &&
+                "Settings"}
+
+              {settingsSection === "workspace" &&
+                "Workspace Settings"}
+
+              {settingsSection === "credentials" &&
+                "API Credentials"}
+            </DialogTitle>
+
+            <DialogDescription>
+              {settingsSection === "settings" &&
+                "Manage your Social Media Analytics workspace."}
+
+              {settingsSection === "workspace" &&
+                "Configure the workspace name used by this prototype."}
+
+              {settingsSection === "credentials" &&
+                "Configure credentials for the supported social platforms."}
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* GENERAL SETTINGS */}
+          {settingsSection === "settings" && (
+            <div className="space-y-4">
+
+              <div className="rounded-lg border p-4">
+                <div className="text-sm font-medium">
+                  System status
+                </div>
+
+                <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                  <span className="size-2 rounded-full bg-emerald-500" />
+                  Backend connected
+                </div>
+              </div>
+
+              <div className="rounded-lg border p-4">
+                <div className="text-sm font-medium">
+                  Current workspace
+                </div>
+
+                <div className="mt-1 text-xs text-muted-foreground">
+                  {displayWorkspace}
+                </div>
+              </div>
+
+              <Button
+                className="w-full"
+                onClick={() =>
+                  openSettings("workspace")
+                }
+              >
+                Workspace settings
+              </Button>
+
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() =>
+                  openSettings("credentials")
+                }
+              >
+                API credentials
+              </Button>
+            </div>
+          )}
+
+          {/* WORKSPACE */}
+          {settingsSection === "workspace" && (
+            <div className="space-y-4">
+
+              <div className="space-y-2">
+                <label
+                  htmlFor="workspace-name"
+                  className="text-xs font-medium"
+                >
+                  Workspace name
+                </label>
+
+                <Input
+                  id="workspace-name"
+                  value={workspaceName}
+                  onChange={(event) =>
+                    setWorkspaceName(
+                      event.target.value,
+                    )
+                  }
+                  placeholder="Enter workspace name"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() =>
+                    setSettingsOpen(false)
+                  }
+                >
+                  Cancel
+                </Button>
+
+                <Button
+                  onClick={saveWorkspace}
+                >
+                  Save workspace
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* API CREDENTIALS */}
+          {settingsSection === "credentials" && (
+            <div className="space-y-6">
+
+              {/* TELEGRAM */}
+              <div className="space-y-3 rounded-lg border p-4">
+                <div>
+                  <div className="text-sm font-semibold">
+                    Telegram
+                  </div>
+
+                  <div className="text-[11px] text-muted-foreground">
+                    Used by the Telethon collector.
+                  </div>
+                </div>
+
+                <Input
+                  placeholder="Telegram API ID"
+                  value={credentials.telegramApiId}
+                  onChange={(event) =>
+                    updateCredential(
+                      "telegramApiId",
+                      event.target.value,
+                    )
+                  }
+                />
+
+                <Input
+                  type="password"
+                  placeholder="Telegram API Hash"
+                  value={credentials.telegramApiHash}
+                  onChange={(event) =>
+                    updateCredential(
+                      "telegramApiHash",
+                      event.target.value,
+                    )
+                  }
+                />
+
+                <Input
+                  placeholder="Telegram phone number"
+                  value={credentials.telegramPhone}
+                  onChange={(event) =>
+                    updateCredential(
+                      "telegramPhone",
+                      event.target.value,
+                    )
+                  }
+                />
+              </div>
+
+              {/* INSTAGRAM */}
+              <div className="space-y-3 rounded-lg border p-4">
+                <div>
+                  <div className="text-sm font-semibold">
+                    Instagram
+                  </div>
+
+                  <div className="text-[11px] text-muted-foreground">
+                    Professional Instagram account credentials.
+                  </div>
+                </div>
+
+                <Input
+                  placeholder="Instagram App ID"
+                  value={credentials.instagramAppId}
+                  onChange={(event) =>
+                    updateCredential(
+                      "instagramAppId",
+                      event.target.value,
+                    )
+                  }
+                />
+
+                <Input
+                  type="password"
+                  placeholder="Instagram App Secret"
+                  value={credentials.instagramAppSecret}
+                  onChange={(event) =>
+                    updateCredential(
+                      "instagramAppSecret",
+                      event.target.value,
+                    )
+                  }
+                />
+
+                <Input
+                  type="password"
+                  placeholder="Instagram Access Token"
+                  value={credentials.instagramAccessToken}
+                  onChange={(event) =>
+                    updateCredential(
+                      "instagramAccessToken",
+                      event.target.value,
+                    )
+                  }
+                />
+              </div>
+
+              {/* FACEBOOK */}
+              <div className="space-y-3 rounded-lg border p-4">
+                <div>
+                  <div className="text-sm font-semibold">
+                    Facebook
+                  </div>
+
+                  <div className="text-[11px] text-muted-foreground">
+                    Meta Graph API credentials.
+                  </div>
+                </div>
+
+                <Input
+                  placeholder="Facebook App ID"
+                  value={credentials.facebookAppId}
+                  onChange={(event) =>
+                    updateCredential(
+                      "facebookAppId",
+                      event.target.value,
+                    )
+                  }
+                />
+
+                <Input
+                  type="password"
+                  placeholder="Facebook App Secret"
+                  value={credentials.facebookAppSecret}
+                  onChange={(event) =>
+                    updateCredential(
+                      "facebookAppSecret",
+                      event.target.value,
+                    )
+                  }
+                />
+
+                <Input
+                  type="password"
+                  placeholder="Facebook Access Token"
+                  value={credentials.facebookAccessToken}
+                  onChange={(event) =>
+                    updateCredential(
+                      "facebookAccessToken",
+                      event.target.value,
+                    )
+                  }
+                />
+              </div>
+
+              {/* YOUTUBE */}
+              <div className="space-y-3 rounded-lg border p-4">
+                <div>
+                  <div className="text-sm font-semibold">
+                    YouTube
+                  </div>
+
+                  <div className="text-[11px] text-muted-foreground">
+                    YouTube Data API credential.
+                  </div>
+                </div>
+
+                <Input
+                  type="password"
+                  placeholder="YouTube API Key"
+                  value={credentials.youtubeApiKey}
+                  onChange={(event) =>
+                    updateCredential(
+                      "youtubeApiKey",
+                      event.target.value,
+                    )
+                  }
+                />
+              </div>
+
+              {/* X */}
+              <div className="space-y-3 rounded-lg border p-4">
+                <div>
+                  <div className="text-sm font-semibold">
+                    X / Twitter
+                  </div>
+
+                  <div className="text-[11px] text-muted-foreground">
+                    Bearer token for X API integration.
+                  </div>
+                </div>
+
+                <Input
+                  type="password"
+                  placeholder="X Bearer Token"
+                  value={credentials.xBearerToken}
+                  onChange={(event) =>
+                    updateCredential(
+                      "xBearerToken",
+                      event.target.value,
+                    )
+                  }
+                />
+              </div>
+
+              {/* REDDIT */}
+              <div className="space-y-3 rounded-lg border p-4">
+                <div>
+                  <div className="text-sm font-semibold">
+                    Reddit
+                  </div>
+
+                  <div className="text-[11px] text-muted-foreground">
+                    Reddit application credentials.
+                  </div>
+                </div>
+
+                <Input
+                  placeholder="Reddit Client ID"
+                  value={credentials.redditClientId}
+                  onChange={(event) =>
+                    updateCredential(
+                      "redditClientId",
+                      event.target.value,
+                    )
+                  }
+                />
+
+                <Input
+                  type="password"
+                  placeholder="Reddit Client Secret"
+                  value={credentials.redditClientSecret}
+                  onChange={(event) =>
+                    updateCredential(
+                      "redditClientSecret",
+                      event.target.value,
+                    )
+                  }
+                />
+
+                <Input
+                  placeholder="Reddit User Agent"
+                  value={credentials.redditUserAgent}
+                  onChange={(event) =>
+                    updateCredential(
+                      "redditUserAgent",
+                      event.target.value,
+                    )
+                  }
+                />
+              </div>
+
+              <div className="rounded-lg border p-3 text-[11px] text-muted-foreground">
+                Prototype note: these values are currently
+                stored in browser local storage. For production,
+                credentials should be stored securely on the
+                backend and never exposed to the browser.
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() =>
+                    setSettingsOpen(false)
+                  }
+                >
+                  Cancel
+                </Button>
+
+                <Button
+                  onClick={saveCredentials}
+                >
+                  Save all credentials
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

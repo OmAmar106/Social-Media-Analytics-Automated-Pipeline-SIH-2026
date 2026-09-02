@@ -1,87 +1,76 @@
 import json
 
+INPUT_FILE = "telegram_data.json"
+OUTPUT_FILE = "normalized_telegram_data.json"
 
-def normalize_telegram_data():
-    with open(
-        "telegram_data.json",
-        "r",
-        encoding="utf-8"
-    ) as file:
-        telegram_data = json.load(file)
 
-    normalized_data = []
+def normalize_message(message):
 
-    for post in telegram_data:
+    reactions = message.get("reactions", {})
 
-        normalized_post = {
-            "platform": "telegram",
+    total_reactions = sum(
+        reactions.values()
+    )
 
-            "content": {
-                "id": str(post["message_id"]),
-                "text": post["text"] or "",
-                "timestamp": post["timestamp"]
-            },
-
-            "author": {
-                "id": (
-                    str(post["sender_id"])
-                    if post["sender_id"] is not None
-                    else None
-                )
-            },
-
-            "parent_id": (
-                str(post["reply_to"])
-                if post["reply_to"] is not None
-                else None
-            ),
-
-            "engagement": {
-                "reactions": post["reactions"],
-                "is_forwarded": post["is_forwarded"]
-            },
-
-            "replies": []
-        }
-
-        for reply in post.get("replies", []):
-
-            normalized_reply = {
-                "id": str(reply["message_id"]),
-
-                "author_id": (
-                    str(reply["sender_id"])
-                    if reply["sender_id"] is not None
-                    else None
-                ),
-
-                "text": reply["text"] or "",
-                "timestamp": reply["timestamp"],
-                "parent_id": str(reply["reply_to"])
-            }
-
-            normalized_post["replies"].append(
-                normalized_reply
+    return {
+        "platform": "telegram",
+        "post_id": str(
+            message.get("message_id")
+        ),
+        "author_id": str(
+            message.get("sender_id")
+        ) if message.get("sender_id") is not None else None,
+        "text": message.get("text"),
+        "timestamp": message.get("timestamp"),
+        "reply_to": (
+            str(message["reply_to"])
+            if message.get("reply_to") is not None
+            else None
+        ),
+        "is_forwarded": message.get(
+            "is_forwarded",
+            False
+        ),
+        "engagement": {
+            "reactions": reactions,
+            "total_reactions": total_reactions,
+            "reply_count": len(
+                message.get("replies", [])
             )
+        }
+    }
 
-        normalized_data.append(normalized_post)
 
-    with open(
-        "normalized_telegram_data.json",
-        "w",
-        encoding="utf-8"
-    ) as file:
-        json.dump(
-            normalized_data,
-            file,
-            ensure_ascii=False,
-            indent=4
-        )
+with open(
+    INPUT_FILE,
+    "r",
+    encoding="utf-8"
+) as file:
+    data = json.load(file)
 
-    print(
-        f"Normalized {len(normalized_data)} posts."
+
+normalized = [
+    normalize_message(message)
+    for message in data
+]
+
+
+with open(
+    OUTPUT_FILE,
+    "w",
+    encoding="utf-8"
+) as file:
+    json.dump(
+        normalized,
+        file,
+        ensure_ascii=False,
+        indent=2
     )
 
 
-if __name__ == "__main__":
-    normalize_telegram_data()
+print(
+    f"Normalized {len(normalized)} messages."
+)
+print(
+    f"Saved to {OUTPUT_FILE}"
+)
